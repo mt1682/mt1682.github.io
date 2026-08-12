@@ -1,41 +1,65 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>あなたのＨＰタイトル</title>
-<meta name="keywords" content="ページのキーワードA,B,C">
-<meta name="description" content="ページの説明">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="style.css">
+<title>VVVF SPWM Simulator</title>
+<style>
+body{font-family:sans-serif;margin:20px;background:#111;color:#eee}
+canvas{background:#fff;border:1px solid #555}
+label{display:block;margin:8px 0}
+</style>
 </head>
 <body>
-<div id="outer">
-<header>
-<div class="header-inner">
-<h1>あなたのＨＰタイトル</h1>
-<p>あなたのＨＰの説明文</p>
-</div>
-</header>
-<div id="content">
-<div class="inner">
-<h2>記事ページ見出し・大</h2>
-<p>文章あれこれ</p>
-<h3>記事ページ見出し・中</h3>
-<p>文章あれこれ</p>
-<h4>記事ページ見出し・小</h4>
-<p>文章あれこれ</p>
-</div>
-<aside>
-<div class="left-title">サイドバータイトル</div>
-<div class="link">
-<ul>
-<li>記事ページへのリンク</li>
-<li>記事ページへのリンク</li>
-</ul>
-</div>
-</aside>
-</div>
-<footer>© 2010 あなたのホームページ</footer>
-</div>
+<h2>VVVF SPWM シミュレータ（簡易版）</h2>
+<label>出力周波数 <input id="freq" type="range" min="0" max="60" value="10"><span id="fv">10</span> Hz</label>
+<label>変調率 <input id="amp" type="range" min="0" max="100" value="80"><span id="av">80</span>%</label>
+<canvas id="c" width="900" height="420"></canvas>
+<script>
+const cvs=document.getElementById('c');
+const ctx=cvs.getContext('2d');
+let th=0;
+function draw(){
+ let f=+freq.value,a=+amp.value/100;
+ fv.textContent=f; av.textContent=amp.value;
+ th += 2*Math.PI*f/60;
+ ctx.clearRect(0,0,cvs.width,cvs.height);
+ ctx.strokeStyle="#000";
+ ctx.beginPath();ctx.moveTo(0,210);ctx.lineTo(900,210);ctx.stroke();
+ const phases=[0,-2*Math.PI/3,-4*Math.PI/3];
+ const colors=["red","green","blue"];
+ for(let p=0;p<3;p++){
+   ctx.beginPath();ctx.strokeStyle=colors[p];
+   for(let x=0;x<900;x++){
+      let ang=th+x/900*4*Math.PI+phases[p];
+      let y=210-120*a*Math.sin(ang);
+      if(x===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+   }
+   ctx.stroke();
+ }
+ // PWM example
+ const carrierFreq=20;
+ ctx.strokeStyle="gray";
+ ctx.beginPath();
+ for(let x=0;x<900;x++){
+   let t=(x/900)*carrierFreq;
+   let frac=t-Math.floor(t);
+   let tri= frac<0.5? frac*2:(1-frac)*2;
+   let y=390-tri*80;
+   if(x===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+ }
+ ctx.stroke();
+ ctx.strokeStyle="purple";
+ ctx.beginPath();
+ for(let x=0;x<900;x++){
+   let ang=th+x/900*4*Math.PI;
+   let y=390-80*((Math.sin(ang)*a+1)/2);
+   if(x===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+ }
+ ctx.stroke();
+ requestAnimationFrame(draw);
+}
+draw();
+</script>
 </body>
 </html>
