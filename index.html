@@ -349,15 +349,23 @@
     <div id="screen-home" class="screen active">
       <div class="form-group">
         <label for="pdf-select">出題用PDFを選択：</label>
-        <select id="pdf-select"></select>
+        <select id="pdf-select" onchange="updateStartQuestionOptions()"></select>
       </div>
 
       <div class="form-group">
         <label for="mode-select">出題モード：</label>
-        <select id="mode-select">
-          <option value="all">問1から順番に全問解く</option>
+        <select id="mode-select" onchange="toggleStartQuestionGroup()">
+          <option value="all">順番に全問解く</option>
           <option value="random10">10問ランダム出題</option>
           <option value="review">復習モード（過去に間違えた問題）</option>
+        </select>
+      </div>
+
+      <!-- 新機能：何問目から始めるかを選択 -->
+      <div class="form-group" id="start-question-group">
+        <label for="start-question-select">開始する問題番号：</label>
+        <select id="start-question-select">
+          <!-- JSで自動生成されます -->
         </select>
       </div>
 
@@ -394,7 +402,6 @@
 
       <h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 8px;">全問題の回答と解説</h3>
       
-      <!-- 解答・全問題解説一覧表示エリア -->
       <div id="review-list" class="review-list"></div>
 
       <button class="btn" style="margin-top: 20px;" onclick="showHome()">設定画面へ戻る</button>
@@ -454,6 +461,8 @@
 
     window.onload = function() {
       initPdfSelect();
+      updateStartQuestionOptions();
+      toggleStartQuestionGroup();
     };
 
     function initPdfSelect() {
@@ -464,6 +473,35 @@
         option.value = key;
         option.textContent = quizData[key].title;
         select.appendChild(option);
+      }
+    }
+
+    // 選択されたPDFの問題数に応じて開始番号の選択肢を更新
+    function updateStartQuestionOptions() {
+      const pdfKey = document.getElementById('pdf-select').value;
+      const startSelect = document.getElementById('start-question-select');
+      startSelect.innerHTML = '';
+
+      const source = quizData[pdfKey];
+      if (!source || !source.questions.length) return;
+
+      const total = source.questions.length;
+      for (let i = 1; i <= total; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `問${i} からスタート`;
+        startSelect.appendChild(option);
+      }
+    }
+
+    // 「順番に全問解く」モードの時だけ開始番号の設定項目を表示
+    function toggleStartQuestionGroup() {
+      const mode = document.getElementById('mode-select').value;
+      const group = document.getElementById('start-question-group');
+      if (mode === 'all') {
+        group.style.display = 'block';
+      } else {
+        group.style.display = 'none';
       }
     }
 
@@ -484,7 +522,11 @@
 
       let questions = [...source.questions];
 
-      if (mode === 'random10') {
+      if (mode === 'all') {
+        // 指定された問題番号（1-based）以降を取得
+        const startNum = parseInt(document.getElementById('start-question-select').value) || 1;
+        questions = questions.slice(startNum - 1);
+      } else if (mode === 'random10') {
         questions = questions.sort(() => Math.random() - 0.5).slice(0, 10);
       } else if (mode === 'review') {
         questions = questions.filter(q => wrongQuestionIds.includes(q.id));
@@ -507,7 +549,8 @@
       selectedOption = null;
       const q = currentQuestions[currentIndex];
 
-      document.getElementById('quiz-progress').textContent = `問 ${currentIndex + 1} / ${currentQuestions.length}`;
+      // 現在の進捗を表示
+      document.getElementById('quiz-progress').textContent = `進捗: ${currentIndex + 1} / ${currentQuestions.length} 問目`;
       document.getElementById('question-text').textContent = q.text;
 
       const optionsContainer = document.getElementById('options-container');
@@ -644,7 +687,6 @@
       }
     }
 
-    // 3. 結果画面の表示（出題されたすべての問題・回答・正解・解説を表示）
     function showResult() {
       showScreen('screen-result');
 
@@ -662,7 +704,6 @@
         const card = document.createElement('div');
         card.className = 'review-card';
 
-        // ヘッダー（正誤バッジ + 問題番号）
         const header = document.createElement('div');
         header.className = 'review-header';
 
@@ -671,17 +712,15 @@
         badge.textContent = item.isCorrect ? '正解' : '不正解';
 
         const title = document.createElement('strong');
-        title.textContent = `問${i + 1}`;
+        title.textContent = `第 ${i + 1} 問`;
 
         header.appendChild(badge);
         header.appendChild(title);
 
-        // 問題文
         const qText = document.createElement('div');
         qText.className = 'review-q-text';
         qText.textContent = item.question.text;
 
-        // あなたの回答と正解
         const ansInfo = document.createElement('div');
         ansInfo.className = 'review-ans-info';
         
@@ -694,7 +733,6 @@
         ansInfo.appendChild(yourAns);
         ansInfo.appendChild(correctAns);
 
-        // 解説ボックス（全文表示）
         const expBox = document.createElement('div');
         expBox.className = 'review-exp-box';
         expBox.textContent = item.question.explanation;
