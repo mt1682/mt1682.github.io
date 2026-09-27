@@ -97,14 +97,6 @@
       background-color: var(--primary-hover);
     }
 
-    .btn-secondary {
-      background-color: #718096;
-    }
-
-    .btn-secondary:hover {
-      background-color: #4a5568;
-    }
-
     /* クイズ画面 */
     .quiz-header {
       display: flex;
@@ -125,29 +117,118 @@
     .options {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
       margin-bottom: 20px;
     }
 
-    .option-btn {
-      text-align: left;
-      background: #fff;
+    /* 選択肢カード */
+    .option-card {
       border: 2px solid var(--border-color);
       border-radius: 8px;
-      padding: 12px 16px;
-      font-size: 1rem;
-      cursor: pointer;
+      padding: 12px 14px;
+      background: #fff;
       transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
 
-    .option-btn:hover {
+    .option-card.selected {
       border-color: var(--primary-color);
       background-color: #ebf8ff;
     }
 
-    .option-btn.selected {
-      border-color: var(--primary-color);
-      background-color: #ebf8ff;
+    .option-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .option-radio {
+      margin-top: 3px;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .option-text-span {
+      font-size: 1rem;
+      line-height: 1.5;
+      flex-grow: 1;
+    }
+
+    /* 一時メモバー */
+    .memo-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border-color);
+      flex-wrap: wrap;
+    }
+
+    .memo-label {
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: #718096;
+      white-space: nowrap;
+    }
+
+    .memo-btns {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .memo-btn {
+      width: auto;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      border: 1px solid #cbd5e0;
+      background-color: #edf2f7;
+      color: #4a5568;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+      line-height: 1.2;
+    }
+
+    .memo-btn:hover {
+      background-color: #e2e8f0;
+    }
+
+    /* 一時メモ選択時のスタイル */
+    .memo-btn[data-active="true"][data-memo="正"] {
+      background-color: #c6f6d5;
+      color: #22543d;
+      border-color: #38a169;
+      font-weight: bold;
+    }
+    .memo-btn[data-active="true"][data-memo="正?"] {
+      background-color: #e6fffa;
+      color: #234e52;
+      border-color: #319795;
+      font-weight: bold;
+    }
+    .memo-btn[data-active="true"][data-memo="?"] {
+      background-color: #feebc8;
+      color: #744210;
+      border-color: #dd6b20;
+      font-weight: bold;
+    }
+    .memo-btn[data-active="true"][data-memo="誤?"] {
+      background-color: #fff5f5;
+      color: #742a2a;
+      border-color: #e53e3e;
+      font-weight: bold;
+    }
+    .memo-btn[data-active="true"][data-memo="誤"] {
+      background-color: #fed7d7;
+      color: #9b2c2c;
+      border-color: #e53e3e;
+      font-weight: bold;
     }
 
     .explanation-card {
@@ -226,9 +307,7 @@
     <div id="screen-home" class="screen active">
       <div class="form-group">
         <label for="pdf-select">出題用PDFを選択：</label>
-        <select id="pdf-select">
-          <!-- JSで自動生成されます -->
-        </select>
+        <select id="pdf-select"></select>
       </div>
 
       <div class="form-group">
@@ -252,13 +331,14 @@
 
       <div id="question-text" class="question-text"></div>
 
+      <!-- 選択肢一覧 -->
       <div id="options-container" class="options"></div>
 
       <button id="btn-submit" class="btn" onclick="checkAnswer()">判定する</button>
 
       <div id="explanation-card" class="explanation-card">
         <div id="result-status" class="result-status"></div>
-        <div id="explanation-text"></div>
+        <div id="explanation-text" style="white-space: pre-wrap;"></div>
         <button id="btn-next" class="btn" style="margin-top: 15px;" onclick="nextQuestion()">次の問題へ</button>
       </div>
     </div>
@@ -271,7 +351,7 @@
         <div id="score-detail">10問中 0問正解</div>
       </div>
 
-      <h3>今回の問題一覧</h3>
+      <h3>解答履歴</h3>
       <div id="review-list" class="review-list"></div>
 
       <button class="btn" onclick="showHome()">設定画面へ戻る</button>
@@ -280,7 +360,7 @@
 
   <script>
     /* -------------------------------------------------------------
-       問題データ（ここに新しいPDFデータや問題を追加できます）
+       問題データ（ここに新しいPDFデータを自由に追加できます）
     ------------------------------------------------------------- */
     const quizData = {
       "pdf_01": {
@@ -295,19 +375,19 @@
               "3. 国や地方公共団体が自ら宅地建物取引業に該当する行為を行う場合でも、免許を受ける必要はない。",
               "4. 破産管財人が破産財団の清算目的で宅地を定期的に売却する場合、常に免許が必要である。"
             ],
-            answer: 2, // 正解の選択肢インデックス (0 = 1, 1 = 2, 2 = 3, 3 = 4)
+            answer: 2, // 0-based: 2は「3」が正解
             explanation: "【正解：3】\n国や地方公共団体には宅建業法の規定（免許制度など）が適用されないため、免許を受けることなく自ら売買等の取引を行うことができます。"
           },
           {
             id: "p1_q2",
-            text: "【问2】宅地建物取引士（宅建士）に関する次の記述のうち、誤っているものはどれか。",
+            text: "【問2】宅地建物取引士（宅建士）に関する次の記述のうち、誤っているものはどれか。",
             options: [
               "1. 宅建士証の有効期間は5年であり、更新するには交付申請前1年以内に行われる法定講習を受講しなければならない。",
               "2. 事務所の専任の宅建士は、非常勤の役員であっても他の事務所と兼務していなければ専任と認められる。",
               "3. 業務停止処分に違反した宅建士は、登録が削除され、削除から5年間は再登録を受けることができない。",
               "4. 宅建士は、重要事項説明を行う際、相手方から請求がなくても宅建士証を提示しなければならない。"
             ],
-            answer: 1,
+            answer: 1, // 0-based: 1は「2」が誤り（正解）
             explanation: "【正解：2】\n専任の宅建士は「常勤性」と「専従性」が求められます。非常勤の役員は常勤性を満たさないため、専任の宅建士となることはできません。"
           },
           {
@@ -319,18 +399,11 @@
               "3. 営業保証金は、有価証券で供託することは一切認められていない。",
               "4. 免許取得から3か月以内に供託の届出を行わない場合、免許は自動的に失効する。"
             ],
-            answer: 1,
+            answer: 1, // 0-based: 1は「2」が正解
             explanation: "【正解：2】\n営業保証金の額は、主たる事務所（本店）1,000万円、従たる事務所（支店）1か所につき500万円と定められています。"
           }
         ]
       }
-      /* 
-      // ★新しいPDF問題の追加例（以下のコメントアウトを外して追加可能）
-      , "pdf_02": {
-        title: "宅建業法 応用答練 第2回",
-        questions: [ ... ]
-      }
-      */
     };
 
     /* -------------------------------------------------------------
@@ -339,15 +412,13 @@
     let currentQuestions = [];
     let currentIndex = 0;
     let selectedOption = null;
-    let userAnswers = []; // { question, selected, isCorrect }
+    let userAnswers = [];
     let wrongQuestionIds = JSON.parse(localStorage.getItem('takken_wrong_ids') || '[]');
 
-    // 初期化処理
     window.onload = function() {
       initPdfSelect();
     };
 
-    // PDFドロップダウンの動的生成
     function initPdfSelect() {
       const select = document.getElementById('pdf-select');
       select.innerHTML = '';
@@ -359,7 +430,6 @@
       }
     }
 
-    // 画面切り替え関数
     function showScreen(screenId) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.getElementById(screenId).classList.add('active');
@@ -379,10 +449,8 @@
       let questions = [...source.questions];
 
       if (mode === 'random10') {
-        // ランダムシャッフルして10問抽出
         questions = questions.sort(() => Math.random() - 0.5).slice(0, 10);
       } else if (mode === 'review') {
-        // 間違えた問題のみ抽出
         questions = questions.filter(q => wrongQuestionIds.includes(q.id));
         if (questions.length === 0) {
           alert("現在、復習対象の（間違えた）問題はありません！");
@@ -399,70 +467,135 @@
       loadQuestion();
     }
 
-    // 問題の読み込みと描画
+    // 問題読み込み・表示
     function loadQuestion() {
       selectedOption = null;
       const q = currentQuestions[currentIndex];
 
-      // ヘッダー更新
       document.getElementById('quiz-progress').textContent = `問 ${currentIndex + 1} / ${currentQuestions.length}`;
-      
-      // 問題文
       document.getElementById('question-text').textContent = q.text;
 
-      // 選択肢
       const optionsContainer = document.getElementById('options-container');
       optionsContainer.innerHTML = '';
 
       q.options.forEach((optText, index) => {
-        const btn = document.createElement('button');
-        btn.className = 'option-btn';
-        btn.textContent = optText;
-        btn.onclick = () => selectOption(index, btn);
-        optionsContainer.appendChild(btn);
+        // カード要素
+        const card = document.createElement('div');
+        card.className = 'option-card';
+
+        // 1. 本命解答の選択エリア（メイン）
+        const main = document.createElement('div');
+        main.className = 'option-main';
+        main.onclick = () => selectOption(index, card);
+
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'final-answer';
+        radio.className = 'option-radio';
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'option-text-span';
+        textSpan.textContent = optText;
+
+        main.appendChild(radio);
+        main.appendChild(textSpan);
+
+        // 2. 一時検討メモエリア
+        const memoBar = document.createElement('div');
+        memoBar.className = 'memo-bar';
+
+        const memoLabel = document.createElement('span');
+        memoLabel.className = 'memo-label';
+        memoLabel.textContent = '一時メモ:';
+
+        const memoBtns = document.createElement('div');
+        memoBtns.className = 'memo-btns';
+
+        const memoOptions = ['正', '正?', '?', '誤?', '誤'];
+        memoOptions.forEach(val => {
+          const mBtn = document.createElement('button');
+          mBtn.type = 'button';
+          mBtn.className = 'memo-btn';
+          mBtn.setAttribute('data-memo', val);
+          mBtn.textContent = val;
+          
+          mBtn.onclick = (e) => {
+            e.stopPropagation(); // 本命解答の選択と干渉させない
+            toggleMemo(card, mBtn);
+          };
+          memoBtns.appendChild(mBtn);
+        });
+
+        memoBar.appendChild(memoLabel);
+        memoBar.appendChild(memoBtns);
+
+        card.appendChild(main);
+        card.appendChild(memoBar);
+
+        optionsContainer.appendChild(card);
       });
 
-      // 解答・解説エリアの非表示
       document.getElementById('explanation-card').style.display = 'none';
       document.getElementById('btn-submit').style.display = 'block';
     }
 
-    // 選択肢の選択
-    function selectOption(index, element) {
-      document.querySelectorAll('.option-btn').forEach(btn => btn.classList.remove('selected'));
-      element.classList.add('selected');
+    // 本命解答の選択
+    function selectOption(index, cardElement) {
+      document.querySelectorAll('.option-card').forEach(card => {
+        card.classList.remove('selected');
+        const radio = card.querySelector('.option-radio');
+        if (radio) radio.checked = false;
+      });
+
+      cardElement.classList.add('selected');
+      const radio = cardElement.querySelector('.option-radio');
+      if (radio) radio.checked = true;
+
       selectedOption = index;
     }
 
-    // 2. 判定と解説表示
+    // 一時メモボタンの切り替え（トグル）
+    function toggleMemo(cardElement, clickedBtn) {
+      const isAlreadyActive = clickedBtn.getAttribute('data-active') === 'true';
+      
+      // 同じ選択肢内の他のメモボタンを一旦すべて非アクティブ化
+      cardElement.querySelectorAll('.memo-btn').forEach(btn => {
+        btn.removeAttribute('data-active');
+      });
+
+      // 解除されていなかった場合のみアクティブにする（トグル動作）
+      if (!isAlreadyActive) {
+        clickedBtn.setAttribute('data-active', 'true');
+      }
+    }
+
+    // 判定
     function checkAnswer() {
       if (selectedOption === null) {
-        alert("選択肢を選んでください。");
+        alert("最終的な回答（肢）を選択してください。");
         return;
       }
 
       const q = currentQuestions[currentIndex];
       const isCorrect = (selectedOption === q.answer);
 
-      // 解答結果の保持
       userAnswers.push({
         question: q,
         selected: selectedOption,
         isCorrect: isCorrect
       });
 
-      // 間違いリスト（LocalStorage）の更新
+      // 復習（間違い）リストの更新
       if (!isCorrect) {
         if (!wrongQuestionIds.includes(q.id)) {
           wrongQuestionIds.push(q.id);
         }
       } else {
-        // 正解した場合は復習リストから除外
         wrongQuestionIds = wrongQuestionIds.filter(id => id !== q.id);
       }
       localStorage.setItem('takken_wrong_ids', JSON.stringify(wrongQuestionIds));
 
-      // 画面更新
+      // 判定結果画面の表示
       document.getElementById('btn-submit').style.display = 'none';
       const card = document.getElementById('explanation-card');
       const status = document.getElementById('result-status');
@@ -477,7 +610,6 @@
       text.textContent = q.explanation;
     }
 
-    // 次の問題へ
     function nextQuestion() {
       currentIndex++;
       if (currentIndex < currentQuestions.length) {
@@ -487,7 +619,6 @@
       }
     }
 
-    // 3. 結果画面の表示
     function showResult() {
       showScreen('screen-result');
 
@@ -498,7 +629,6 @@
       document.getElementById('score-rate').textContent = `${rate}%`;
       document.getElementById('score-detail').textContent = `${total}問中 ${correctCount}問正解`;
 
-      // 復習リストの表示
       const reviewList = document.getElementById('review-list');
       reviewList.innerHTML = '';
 
