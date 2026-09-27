@@ -42,26 +42,52 @@ async function extractPages(filename) {
   const pdf = await pdfjsLib.getDocument(encodeURI(filename)).promise, pages = [];
   for (let n = 1; n <= pdf.numPages; n++) {
     const content = await pdf.getPage(n).then(page => page.getTextContent());
-    pages.push({ page: n, text: content.items.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim() });
+    pages.push({ page: n, text: keepPdfLineBreaks(content.items) });
   }
   return pages;
 }
+function keepPdfLineBreaks(items) {
+  let previousY = null, result = '';
+  items.forEach(item => {
+    const y = item.transform?.[5];
+    if (previousY !== null && y !== undefined && Math.abs(y - previousY) > 2) result += '\n';
+    else if (result && !result.endsWith('\n')) result += ' ';
+    result += item.str;
+    if (item.hasEOL) result += '\n';
+    previousY = y;
+  });
+  return result.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 function parseQuestions(problemPages, answerText) {
   // 問題PDFには表紙・注意事項・解答用紙も含まれます。角括弧付きの「【問n】」だけを
-  // 問題の開始点として扱い、選択肢が4つそろわない断片は出題しません。
-  const answerMap = new Map();
-  [...answerText.matchAll(/【\s*問\s*([0-9０-９]+)\s*(?:正解|解答)\s*[：:]\s*([1-4１-４])/g)].forEach(match => answerMap.set(toNumber(match[1]), toNumber(match[2]) - 1));
+  // 問題の開始点として扱い、本文ではない部分を出題対象から外します。
+  const answerMap = parseAnswers(answerText);
+  let sequentialId = 0;
   return problemPages.flatMap(({ text, page }) => {
-    const chunks = text.split(/(?=【\s*問\s*[0-9０-９]+\s*】)/).filter(part => /^【\s*問\s*[0-9０-９]+\s*】/.test(part.trim()));
+    // PDFによっては問題番号の字形がテキスト化されないため、番号・閉じ括弧を必須にしない。
+    const chunks = text.split(/(?=【\s*問(?:\s*[0-9０-９]+)?)/).filter(part => /^【\s*問/.test(part.trim()));
     return chunks.map(chunk => {
-      const num = toNumber((chunk.match(/^【\s*問\s*([0-9０-９]+)\s*】/) || [, 0])[1]);
+      const detected = chunk.match(/^【\s*問\s*([0-9０-９]+)/);
+      const num = detected ? toNumber(detected[1]) : ++sequentialId;
+      if (detected) sequentialId = Math.max(sequentialId + 1, num);
       const parsed = splitQuestionAndOptions(chunk);
       return { id: num, page, text: parsed.text, options: parsed.options, answer: answerMap.get(num), explanation: explanationFor(num, answerText) };
-    }).filter(q => q.id && q.options.length === 4 && q.text.length > 20);
+    }).filter(q => q.id && q.text.length > 20);
   }).sort((a, b) => a.id - b.id);
 }
+function parseAnswers(text) {
+  const map = new Map();
+  const chunks = text.split(/(?=【\s*問(?:\s*[0-9０-９]+)?)/).filter(part => /^【\s*問/.test(part.trim()));
+  chunks.forEach((chunk, index) => {
+    const number = chunk.match(/^【\s*問\s*([0-9０-９]+)/);
+    const id = number ? toNumber(number[1]) : index + 1;
+    const answer = chunk.match(/(?:正解|解答)\s*[：:]?\s*([1-4１-４])/);
+    if (answer) map.set(id, toNumber(answer[1]) - 1);
+  });
+  return map;
+}
 function splitQuestionAndOptions(chunk) {
-  const clean = chunk.replace(/\s+/g, ' ').trim();
+  const clean = chunk.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   // 「ア〜エ」の組合せを選ぶ形式（1 ア・イ / 2 ア・ウ …）を末尾から取得する。
   const combo = [...clean.matchAll(/(?:^|\s)([1-4１-４])\s*([ア-エ](?:[・、,\s]*[ア-エ]){0,3})(?=\s+[1-4１-４]\s*[ア-エ]|$)/g)];
   if (combo.length >= 4) {
@@ -75,7 +101,9 @@ function splitQuestionAndOptions(chunk) {
     const choices = direct.slice(-4), start = choices[0].index;
     return { text: clean.slice(0, start).trim(), options: choices.map(x => `${x[1]}. ${x[2].trim()}`) };
   }
-  return { text: clean, options: [] };
+  // 表記ゆれで選択肢を分離できない場合も問題を欠落させない。原文の改行を保ったまま
+  // 1〜4の回答番号を提示し、右側の該当PDFページで選択肢を確認できるようにする。
+  return { text: clean, options: ['1', '2', '3', '4'] };
 }
 function explanationFor(num, text) {
   const re = new RegExp(`問\\s*${num}(?=\\s|[：:]|　)[\\s\\S]{0,850}(?=問\\s*${num + 1}(?=\\s|[：:]|　)|$)`);
