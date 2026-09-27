@@ -33,26 +33,49 @@ function refreshHome() {
   document.querySelector('#saved-count').textContent = mistakes.filter(x => x.book === item.id).length;
 }
 async function extractText(filename) {
+  const pages = await extractPages(filename);
+  return pages.map(page => page.text).join('\n');
+}
+async function extractPages(filename) {
   if (!window.pdfjsLib) throw new Error('PDF読み込みライブラリを読み込めませんでした。通信状況を確認して再読み込みしてください。');
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const pdf = await pdfjsLib.getDocument(encodeURI(filename)).promise, pages = [];
   for (let n = 1; n <= pdf.numPages; n++) {
     const content = await pdf.getPage(n).then(page => page.getTextContent());
-    pages.push(content.items.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim());
+    pages.push({ page: n, text: content.items.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim() });
   }
-  return pages.join('\n');
+  return pages;
 }
-function parseQuestions(text, answerText) {
-  const chunks = text.split(/(?=問\s*[0-9０-９]+\s)/).filter(part => /問\s*[0-9０-９]+/.test(part));
+function parseQuestions(problemPages, answerText) {
+  // 問題PDFには表紙・注意事項・解答用紙も含まれます。角括弧付きの「【問n】」だけを
+  // 問題の開始点として扱い、選択肢が4つそろわない断片は出題しません。
   const answerMap = new Map();
-  [...answerText.matchAll(/問\s*([0-9０-９]+)[^\d１-４]{0,25}([1-4１-４])/g)].forEach(match => answerMap.set(toNumber(match[1]), toNumber(match[2]) - 1));
-  return chunks.map((chunk, i) => {
-    const num = toNumber((chunk.match(/問\s*([0-9０-９]+)/) || [, i + 1])[1]);
-    const pieces = chunk.split(/(?=(?:肢)?[1-4１-４][\.．、\s])/).map(x => x.trim()).filter(Boolean);
-    const optionStart = pieces.findIndex(x => /^(?:肢)?[1１][\.．、\s]/.test(x));
-    const options = optionStart < 0 ? [] : pieces.slice(optionStart, optionStart + 4);
-    return { id: num, text: (optionStart < 0 ? chunk : pieces.slice(0, optionStart).join(' ')).trim(), options, answer: answerMap.get(num), explanation: explanationFor(num, answerText) };
-  }).filter(q => q.options.length >= 2);
+  [...answerText.matchAll(/【\s*問\s*([0-9０-９]+)\s*(?:正解|解答)\s*[：:]\s*([1-4１-４])/g)].forEach(match => answerMap.set(toNumber(match[1]), toNumber(match[2]) - 1));
+  return problemPages.flatMap(({ text, page }) => {
+    const chunks = text.split(/(?=【\s*問\s*[0-9０-９]+\s*】)/).filter(part => /^【\s*問\s*[0-9０-９]+\s*】/.test(part.trim()));
+    return chunks.map(chunk => {
+      const num = toNumber((chunk.match(/^【\s*問\s*([0-9０-９]+)\s*】/) || [, 0])[1]);
+      const parsed = splitQuestionAndOptions(chunk);
+      return { id: num, page, text: parsed.text, options: parsed.options, answer: answerMap.get(num), explanation: explanationFor(num, answerText) };
+    }).filter(q => q.id && q.options.length === 4 && q.text.length > 20);
+  }).sort((a, b) => a.id - b.id);
+}
+function splitQuestionAndOptions(chunk) {
+  const clean = chunk.replace(/\s+/g, ' ').trim();
+  // 「ア〜エ」の組合せを選ぶ形式（1 ア・イ / 2 ア・ウ …）を末尾から取得する。
+  const combo = [...clean.matchAll(/(?:^|\s)([1-4１-４])\s*([ア-エ](?:[・、,\s]*[ア-エ]){0,3})(?=\s+[1-4１-４]\s*[ア-エ]|$)/g)];
+  if (combo.length >= 4) {
+    const choices = combo.slice(-4);
+    const start = choices[0].index;
+    return { text: clean.slice(0, start).trim(), options: choices.map(x => `${x[1]}. ${x[2].replace(/\s/g, '')}`) };
+  }
+  // 肢そのものを選ぶ形式（1. … / 2. …）にも対応する。
+  const direct = [...clean.matchAll(/(?:^|\s)([1-4１-４])[\.．、]\s*([\s\S]*?)(?=\s+[1-4１-４][\.．、]\s|$)/g)];
+  if (direct.length >= 4) {
+    const choices = direct.slice(-4), start = choices[0].index;
+    return { text: clean.slice(0, start).trim(), options: choices.map(x => `${x[1]}. ${x[2].trim()}`) };
+  }
+  return { text: clean, options: [] };
 }
 function explanationFor(num, text) {
   const re = new RegExp(`問\\s*${num}(?=\\s|[：:]|　)[\\s\\S]{0,850}(?=問\\s*${num + 1}(?=\\s|[：:]|　)|$)`);
@@ -63,7 +86,7 @@ function toNumber(value) { return Number(String(value).replace(/[０-９]/g, c =
 async function ensureLoaded(item) {
   if (loaded[item.id]) return loaded[item.id];
   document.querySelector('#load-message').textContent = 'PDFから問題と解答を読み込んでいます…';
-  const [problem, answer] = await Promise.all([extractText(item.problem), extractText(item.answer)]);
+  const [problem, answer] = await Promise.all([extractPages(item.problem), extractText(item.answer)]);
   const parsed = parseQuestions(problem, answer);
   if (!parsed.length) throw new Error('問題を認識できませんでした。PDFを別タブで開いて内容をご確認ください。');
   loaded[item.id] = { questions: parsed }; refreshHome(); return loaded[item.id];
@@ -78,13 +101,14 @@ async function startQuiz() {
     if (mode === 'all') source = source.filter(q => q.id >= Number(document.querySelector('#start-select').value));
     if (!source.length) throw new Error(mode === 'review' ? 'この問題集には復習待ちの問題がありません。' : '出題できる問題がありません。');
     questions = source; index = 0; answers = []; show('quiz'); document.querySelector('#quiz-title').textContent = item.title;
-    document.querySelector('#pdf-viewer').src = encodeURI(item.problem) + '#page=1'; document.querySelector('#pdf-link').href = encodeURI(item.problem); renderQuestion();
+    document.querySelector('#pdf-link').href = encodeURI(item.problem); renderQuestion();
   } catch (error) { document.querySelector('#load-message').textContent = error.message; } finally { button.disabled = false; }
 }
 function renderQuestion() {
   selected = null; const q = questions[index], pct = ((index + 1) / questions.length) * 100;
   document.querySelector('#progress').textContent = `QUESTION ${String(index + 1).padStart(2, '0')} / ${questions.length}`;
   document.querySelector('#progress-bar').style.width = `${pct}%`; document.querySelector('#question-number').textContent = `QUESTION ${String(q.id).padStart(2, '0')}`;
+  document.querySelector('#pdf-viewer').src = encodeURI(book().problem) + `#page=${q.page}`;
   document.querySelector('#question-text').textContent = q.text; const wrap = document.querySelector('#options'); wrap.innerHTML = '';
   q.options.forEach((text, option) => { const label = document.createElement('label'); label.className = 'option'; label.innerHTML = `<input type="radio" name="answer"><span class="option-text"></span><div class="memo-row"><small>一時メモ</small></div>`; label.querySelector('.option-text').textContent = text;
     label.querySelector('input').addEventListener('change', () => { selected = option; [...wrap.children].forEach(el => el.classList.remove('selected')); label.classList.add('selected'); document.querySelector('#judge-button').disabled = false; });
