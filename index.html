@@ -1,65 +1,524 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8">
-<title>VVVF SPWM Simulator</title>
-<style>
-body{font-family:sans-serif;margin:20px;background:#111;color:#eee}
-canvas{background:#fff;border:1px solid #555}
-label{display:block;margin:8px 0}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宅建業法 クイズアプリ</title>
+  <style>
+    :root {
+      --primary-color: #2b6cb0;
+      --primary-hover: #2c5282;
+      --bg-color: #f7fafc;
+      --card-bg: #ffffff;
+      --text-color: #2d3748;
+      --correct-color: #38a169;
+      --incorrect-color: #e53e3e;
+      --border-color: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 700px;
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      padding: 24px;
+      margin: auto;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      text-align: center;
+      color: var(--primary-color);
+      margin-bottom: 20px;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    /* 設定画面 */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    select, button {
+      width: 100%;
+      padding: 12px;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    select {
+      background-color: #fff;
+      cursor: pointer;
+    }
+
+    .btn {
+      background-color: var(--primary-color);
+      color: white;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background-color: #718096;
+    }
+
+    .btn-secondary:hover {
+      background-color: #4a5568;
+    }
+
+    /* クイズ画面 */
+    .quiz-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      color: #718096;
+      margin-bottom: 15px;
+    }
+
+    .question-text {
+      font-size: 1.1rem;
+      font-weight: bold;
+      margin-bottom: 20px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .option-btn {
+      text-align: left;
+      background: #fff;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .option-btn:hover {
+      border-color: var(--primary-color);
+      background-color: #ebf8ff;
+    }
+
+    .option-btn.selected {
+      border-color: var(--primary-color);
+      background-color: #ebf8ff;
+    }
+
+    .explanation-card {
+      background-color: #f7fafc;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 15px;
+      display: none;
+    }
+
+    .explanation-card.correct {
+      border-color: var(--correct-color);
+      background-color: #f0fff4;
+    }
+
+    .explanation-card.incorrect {
+      border-color: var(--incorrect-color);
+      background-color: #fff5f5;
+    }
+
+    .result-status {
+      font-weight: bold;
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+    }
+
+    .result-status.correct { color: var(--correct-color); }
+    .result-status.incorrect { color: var(--incorrect-color); }
+
+    /* 結果画面 */
+    .score-box {
+      text-align: center;
+      padding: 20px;
+      background: #ebf8ff;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .score-rate {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+
+    .review-list {
+      margin-top: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .review-item {
+      padding: 10px;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.9rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: white;
+      margin-right: 8px;
+    }
+    .badge.correct { background-color: var(--correct-color); }
+    .badge.incorrect { background-color: var(--incorrect-color); }
+  </style>
 </head>
 <body>
-<h2>VVVF SPWM シミュレータ（簡易版）</h2>
-<label>出力周波数 <input id="freq" type="range" min="0" max="60" value="10"><span id="fv">10</span> Hz</label>
-<label>変調率 <input id="amp" type="range" min="0" max="100" value="80"><span id="av">80</span>%</label>
-<canvas id="c" width="900" height="420"></canvas>
-<script>
-const cvs=document.getElementById('c');
-const ctx=cvs.getContext('2d');
-let th=0;
-function draw(){
- let f=+freq.value,a=+amp.value/100;
- fv.textContent=f; av.textContent=amp.value;
- th += 2*Math.PI*f/60;
- ctx.clearRect(0,0,cvs.width,cvs.height);
- ctx.strokeStyle="#000";
- ctx.beginPath();ctx.moveTo(0,210);ctx.lineTo(900,210);ctx.stroke();
- const phases=[0,-2*Math.PI/3,-4*Math.PI/3];
- const colors=["red","green","blue"];
- for(let p=0;p<3;p++){
-   ctx.beginPath();ctx.strokeStyle=colors[p];
-   for(let x=0;x<900;x++){
-      let ang=th+x/900*4*Math.PI+phases[p];
-      let y=210-120*a*Math.sin(ang);
-      if(x===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
-   }
-   ctx.stroke();
- }
- // PWM example
- const carrierFreq=20;
- ctx.strokeStyle="gray";
- ctx.beginPath();
- for(let x=0;x<900;x++){
-   let t=(x/900)*carrierFreq;
-   let frac=t-Math.floor(t);
-   let tri= frac<0.5? frac*2:(1-frac)*2;
-   let y=390-tri*80;
-   if(x===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
- }
- ctx.stroke();
- ctx.strokeStyle="purple";
- ctx.beginPath();
- for(let x=0;x<900;x++){
-   let ang=th+x/900*4*Math.PI;
-   let y=390-80*((Math.sin(ang)*a+1)/2);
-   if(x===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
- }
- ctx.stroke();
- requestAnimationFrame(draw);
-}
-draw();
-</script>
+
+  <div class="container">
+    <h1>宅建業法 クイズ</h1>
+
+    <!-- 1. 設定画面 -->
+    <div id="screen-home" class="screen active">
+      <div class="form-group">
+        <label for="pdf-select">出題用PDFを選択：</label>
+        <select id="pdf-select">
+          <!-- JSで自動生成されます -->
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="mode-select">出題モード：</label>
+        <select id="mode-select">
+          <option value="all">問1から順番に全問解く</option>
+          <option value="random10">10問ランダム出題</option>
+          <option value="review">復習モード（過去に間違えた問題）</option>
+        </select>
+      </div>
+
+      <button class="btn" onclick="startQuiz()">学習を開始する</button>
+    </div>
+
+    <!-- 2. クイズ画面 -->
+    <div id="screen-quiz" class="screen">
+      <div class="quiz-header">
+        <span id="quiz-progress">問 1 / 10</span>
+        <span id="quiz-category">応用答練 第1回</span>
+      </div>
+
+      <div id="question-text" class="question-text"></div>
+
+      <div id="options-container" class="options"></div>
+
+      <button id="btn-submit" class="btn" onclick="checkAnswer()">判定する</button>
+
+      <div id="explanation-card" class="explanation-card">
+        <div id="result-status" class="result-status"></div>
+        <div id="explanation-text"></div>
+        <button id="btn-next" class="btn" style="margin-top: 15px;" onclick="nextQuestion()">次の問題へ</button>
+      </div>
+    </div>
+
+    <!-- 3. 結果画面 -->
+    <div id="screen-result" class="screen">
+      <div class="score-box">
+        <div>正答率</div>
+        <div id="score-rate" class="score-rate">0%</div>
+        <div id="score-detail">10問中 0問正解</div>
+      </div>
+
+      <h3>今回の問題一覧</h3>
+      <div id="review-list" class="review-list"></div>
+
+      <button class="btn" onclick="showHome()">設定画面へ戻る</button>
+    </div>
+  </div>
+
+  <script>
+    /* -------------------------------------------------------------
+       問題データ（ここに新しいPDFデータや問題を追加できます）
+    ------------------------------------------------------------- */
+    const quizData = {
+      "pdf_01": {
+        title: "宅建業法 応用答練 第1回",
+        questions: [
+          {
+            id: "p1_q1",
+            text: "【問1】宅地建物取引業の「免許」に関する次の記述のうち、正しいものはどれか。",
+            options: [
+              "1. 建築業者が自ら所有する宅地を区画割して戸建住宅を建築し、不特定多数に売却する場合、免許は不要である。",
+              "2. 農業協同組合が農地を宅地に転用して一括売却する場合でも、宅地建物取引業の免許が必要となる。",
+              "3. 国や地方公共団体が自ら宅地建物取引業に該当する行為を行う場合でも、免許を受ける必要はない。",
+              "4. 破産管財人が破産財団の清算目的で宅地を定期的に売却する場合、常に免許が必要である。"
+            ],
+            answer: 2, // 正解の選択肢インデックス (0 = 1, 1 = 2, 2 = 3, 3 = 4)
+            explanation: "【正解：3】\n国や地方公共団体には宅建業法の規定（免許制度など）が適用されないため、免許を受けることなく自ら売買等の取引を行うことができます。"
+          },
+          {
+            id: "p1_q2",
+            text: "【问2】宅地建物取引士（宅建士）に関する次の記述のうち、誤っているものはどれか。",
+            options: [
+              "1. 宅建士証の有効期間は5年であり、更新するには交付申請前1年以内に行われる法定講習を受講しなければならない。",
+              "2. 事務所の専任の宅建士は、非常勤の役員であっても他の事務所と兼務していなければ専任と認められる。",
+              "3. 業務停止処分に違反した宅建士は、登録が削除され、削除から5年間は再登録を受けることができない。",
+              "4. 宅建士は、重要事項説明を行う際、相手方から請求がなくても宅建士証を提示しなければならない。"
+            ],
+            answer: 1,
+            explanation: "【正解：2】\n専任の宅建士は「常勤性」と「専従性」が求められます。非常勤の役員は常勤性を満たさないため、専任の宅建士となることはできません。"
+          },
+          {
+            id: "p1_q3",
+            text: "【問3】営業保証金に関する次の記述のうち、正しいものはどれか。",
+            options: [
+              "1. 宅建業者は、事業を開始した後に本店の最寄りの供託所に営業保証金を供託しなければならない。",
+              "2. 主たる事務所（本店）のために供託すべき営業保証金の額は1,000万円である。",
+              "3. 営業保証金は、有価証券で供託することは一切認められていない。",
+              "4. 免許取得から3か月以内に供託の届出を行わない場合、免許は自動的に失効する。"
+            ],
+            answer: 1,
+            explanation: "【正解：2】\n営業保証金の額は、主たる事務所（本店）1,000万円、従たる事務所（支店）1か所につき500万円と定められています。"
+          }
+        ]
+      }
+      /* 
+      // ★新しいPDF問題の追加例（以下のコメントアウトを外して追加可能）
+      , "pdf_02": {
+        title: "宅建業法 応用答練 第2回",
+        questions: [ ... ]
+      }
+      */
+    };
+
+    /* -------------------------------------------------------------
+       アプリの状態管理変数
+    ------------------------------------------------------------- */
+    let currentQuestions = [];
+    let currentIndex = 0;
+    let selectedOption = null;
+    let userAnswers = []; // { question, selected, isCorrect }
+    let wrongQuestionIds = JSON.parse(localStorage.getItem('takken_wrong_ids') || '[]');
+
+    // 初期化処理
+    window.onload = function() {
+      initPdfSelect();
+    };
+
+    // PDFドロップダウンの動的生成
+    function initPdfSelect() {
+      const select = document.getElementById('pdf-select');
+      select.innerHTML = '';
+      for (const key in quizData) {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = quizData[key].title;
+        select.appendChild(option);
+      }
+    }
+
+    // 画面切り替え関数
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    // 1. クイズ開始
+    function startQuiz() {
+      const pdfKey = document.getElementById('pdf-select').value;
+      const mode = document.getElementById('mode-select').value;
+      const source = quizData[pdfKey];
+
+      if (!source || !source.questions.length) {
+        alert("選択されたデータに問題が登録されていません。");
+        return;
+      }
+
+      let questions = [...source.questions];
+
+      if (mode === 'random10') {
+        // ランダムシャッフルして10問抽出
+        questions = questions.sort(() => Math.random() - 0.5).slice(0, 10);
+      } else if (mode === 'review') {
+        // 間違えた問題のみ抽出
+        questions = questions.filter(q => wrongQuestionIds.includes(q.id));
+        if (questions.length === 0) {
+          alert("現在、復習対象の（間違えた）問題はありません！");
+          return;
+        }
+      }
+
+      currentQuestions = questions;
+      currentIndex = 0;
+      userAnswers = [];
+
+      document.getElementById('quiz-category').textContent = source.title;
+      showScreen('screen-quiz');
+      loadQuestion();
+    }
+
+    // 問題の読み込みと描画
+    function loadQuestion() {
+      selectedOption = null;
+      const q = currentQuestions[currentIndex];
+
+      // ヘッダー更新
+      document.getElementById('quiz-progress').textContent = `問 ${currentIndex + 1} / ${currentQuestions.length}`;
+      
+      // 問題文
+      document.getElementById('question-text').textContent = q.text;
+
+      // 選択肢
+      const optionsContainer = document.getElementById('options-container');
+      optionsContainer.innerHTML = '';
+
+      q.options.forEach((optText, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.textContent = optText;
+        btn.onclick = () => selectOption(index, btn);
+        optionsContainer.appendChild(btn);
+      });
+
+      // 解答・解説エリアの非表示
+      document.getElementById('explanation-card').style.display = 'none';
+      document.getElementById('btn-submit').style.display = 'block';
+    }
+
+    // 選択肢の選択
+    function selectOption(index, element) {
+      document.querySelectorAll('.option-btn').forEach(btn => btn.classList.remove('selected'));
+      element.classList.add('selected');
+      selectedOption = index;
+    }
+
+    // 2. 判定と解説表示
+    function checkAnswer() {
+      if (selectedOption === null) {
+        alert("選択肢を選んでください。");
+        return;
+      }
+
+      const q = currentQuestions[currentIndex];
+      const isCorrect = (selectedOption === q.answer);
+
+      // 解答結果の保持
+      userAnswers.push({
+        question: q,
+        selected: selectedOption,
+        isCorrect: isCorrect
+      });
+
+      // 間違いリスト（LocalStorage）の更新
+      if (!isCorrect) {
+        if (!wrongQuestionIds.includes(q.id)) {
+          wrongQuestionIds.push(q.id);
+        }
+      } else {
+        // 正解した場合は復習リストから除外
+        wrongQuestionIds = wrongQuestionIds.filter(id => id !== q.id);
+      }
+      localStorage.setItem('takken_wrong_ids', JSON.stringify(wrongQuestionIds));
+
+      // 画面更新
+      document.getElementById('btn-submit').style.display = 'none';
+      const card = document.getElementById('explanation-card');
+      const status = document.getElementById('result-status');
+      const text = document.getElementById('explanation-text');
+
+      card.className = `explanation-card ${isCorrect ? 'correct' : 'incorrect'}`;
+      card.style.display = 'block';
+
+      status.className = `result-status ${isCorrect ? 'correct' : 'incorrect'}`;
+      status.textContent = isCorrect ? "【正解！】" : "【不正解...】";
+
+      text.textContent = q.explanation;
+    }
+
+    // 次の問題へ
+    function nextQuestion() {
+      currentIndex++;
+      if (currentIndex < currentQuestions.length) {
+        loadQuestion();
+      } else {
+        showResult();
+      }
+    }
+
+    // 3. 結果画面の表示
+    function showResult() {
+      showScreen('screen-result');
+
+      const total = userAnswers.length;
+      const correctCount = userAnswers.filter(a => a.isCorrect).length;
+      const rate = Math.round((correctCount / total) * 100);
+
+      document.getElementById('score-rate').textContent = `${rate}%`;
+      document.getElementById('score-detail').textContent = `${total}問中 ${correctCount}問正解`;
+
+      // 復習リストの表示
+      const reviewList = document.getElementById('review-list');
+      reviewList.innerHTML = '';
+
+      userAnswers.forEach((item, i) => {
+        const div = document.createElement('div');
+        div.className = 'review-item';
+        
+        const badge = document.createElement('span');
+        badge.className = `badge ${item.isCorrect ? 'correct' : 'incorrect'}`;
+        badge.textContent = item.isCorrect ? '正解' : '不正解';
+
+        div.appendChild(badge);
+        div.appendChild(document.createTextNode(`問${i+1}: ${item.question.text.substring(0, 30)}...`));
+        reviewList.appendChild(div);
+      });
+    }
+
+    function showHome() {
+      showScreen('screen-home');
+    }
+  </script>
 </body>
 </html>
